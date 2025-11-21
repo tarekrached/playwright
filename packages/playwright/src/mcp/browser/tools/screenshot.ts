@@ -27,7 +27,7 @@ import { dateAsFileName } from './utils';
 import type * as playwright from 'playwright-core';
 
 const screenshotSchema = z.object({
-  type: z.enum(['png', 'jpeg']).default('png').describe('Image format for the screenshot. Default is png.'),
+  type: z.enum(['png', 'jpeg']).optional().default('png').describe('Image format for the screenshot. Default is png.'),
   filename: z.string().optional().describe('File name to save the screenshot to. Defaults to `page-{timestamp}.{png|jpeg}` if not specified. Prefer relative file names to stay within the output directory.'),
   element: z.string().optional().describe('Human-readable element description used to obtain permission to screenshot the element. If not provided, the screenshot will be taken of viewport. If element is provided, ref must be provided too.'),
   ref: z.string().optional().describe('Exact target element reference from the page snapshot. If not provided, the screenshot will be taken of viewport. If ref is provided, element must be provided too.'),
@@ -50,7 +50,7 @@ const screenshot = defineTabTool({
     if (params.fullPage && params.ref)
       throw new Error('fullPage cannot be used with element screenshots.');
 
-    const fileType = params.type || 'png';
+    const fileType = (!params.type || params.type === '') ? 'png' : params.type;
     const fileName = await tab.context.outputFile(params.filename || dateAsFileName(fileType), { origin: 'llm', reason: 'Saving screenshot' });
     const options: playwright.PageScreenshotOptions = {
       type: fileType,
@@ -78,8 +78,9 @@ const screenshot = defineTabTool({
 
     response.addResult(`Took the ${screenshotTarget} screenshot and saved it as ${fileName}`);
 
+    const contentType = fileType === 'png' ? 'image/png' : 'image/jpeg';
     response.addImage({
-      contentType: fileType === 'png' ? 'image/png' : 'image/jpeg',
+      contentType,
       data: scaleImageToFitMessage(buffer, fileType)
     });
   }
