@@ -411,3 +411,54 @@ test('browser_take_screenshot (viewport without snapshot)', async ({ startClient
     ],
   });
 });
+
+test('browser_take_screenshot validates actual image format matches declared MIME type (issue #1211)', async ({ startClient, server }, testInfo) => {
+  const { client } = await startClient({
+    config: { outputDir: testInfo.outputPath('output') },
+  });
+
+  await client.callTool({
+    name: 'browser_navigate',
+    arguments: { url: server.HELLO_WORLD },
+  });
+
+  // Test default (no type specified) - should be PNG with image/png MIME type
+  const defaultResult = await client.callTool({
+    name: 'browser_take_screenshot',
+  });
+  expect(defaultResult.content?.[1]?.mimeType).toBe('image/png');
+  const defaultBuffer = Buffer.from(defaultResult.content?.[1]?.data, 'base64');
+  // PNG files start with magic bytes: 89 50 4E 47 (‰PNG)
+  expect(defaultBuffer[0]).toBe(0x89);
+  expect(defaultBuffer[1]).toBe(0x50);
+  expect(defaultBuffer[2]).toBe(0x4E);
+  expect(defaultBuffer[3]).toBe(0x47);
+  // Verify it's NOT JPEG (which starts with FF D8 FF)
+  expect(defaultBuffer[0]).not.toBe(0xFF);
+
+  // Test explicit PNG type
+  const pngResult = await client.callTool({
+    name: 'browser_take_screenshot',
+    arguments: { type: 'png' },
+  });
+  expect(pngResult.content?.[1]?.mimeType).toBe('image/png');
+  const pngBuffer = Buffer.from(pngResult.content?.[1]?.data, 'base64');
+  expect(pngBuffer[0]).toBe(0x89);
+  expect(pngBuffer[1]).toBe(0x50);
+  expect(pngBuffer[2]).toBe(0x4E);
+  expect(pngBuffer[3]).toBe(0x47);
+
+  // Test explicit JPEG type - should be JPEG with image/jpeg MIME type
+  const jpegResult = await client.callTool({
+    name: 'browser_take_screenshot',
+    arguments: { type: 'jpeg' },
+  });
+  expect(jpegResult.content?.[1]?.mimeType).toBe('image/jpeg');
+  const jpegBuffer = Buffer.from(jpegResult.content?.[1]?.data, 'base64');
+  // JPEG files start with magic bytes: FF D8 FF
+  expect(jpegBuffer[0]).toBe(0xFF);
+  expect(jpegBuffer[1]).toBe(0xD8);
+  expect(jpegBuffer[2]).toBe(0xFF);
+  // Verify it's NOT PNG
+  expect(jpegBuffer[0]).not.toBe(0x89);
+});
